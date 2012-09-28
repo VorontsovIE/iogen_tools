@@ -147,11 +147,6 @@ class Clusterer
     max_distance
   end
   
-  # selects from metric only pairwise distances between nodes (crossing out of matrix not presented nodes)
-  def metrics_subset(nodes)
-    @leafs_distance.values_at(*nodes).map{|x| x.values_at(*nodes)}
-  end
-  
   def inconsistences
     @inconsistences ||= calculate_inconsistences
   end
