@@ -148,10 +148,7 @@ class Clusterer
   end
   
   def inconsistences
-    @inconsistences ||= calculate_inconsistences
-  end
-  
-  def calculate_inconsistences
+    return @inconsistences  if @inconsistences
     result = []
     @linkage_tree.each do |((ind1,ind2),dst)|
       dst1 = link_length(ind1)
@@ -164,7 +161,7 @@ class Clusterer
         result << (dst - ave) / stddev
       end
     end
-    result
+    @inconsistences = result
   end
   
   def cutoff_criterium(criterium, cutoff)
