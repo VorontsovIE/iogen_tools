@@ -45,7 +45,13 @@ else
   clusterer = Clusterer.new(distance_matrix, :average_linkage, names)
 end
 
-# File.open("#{output_folder}/macroape_linklength.newick",'w'){|f| f << clusterer.create_newick_inner_content(:link_length)}
+newick_formatter = ClusterNewickFormatter.new(clusterer, :link_length)
+xml_formatter = ClusterXMLFormatter.new(clusterer, :link_length, 0.1)
+File.open("#{output_folder}/macroape_linklength.html",'w'){|f| f << newick_formatter.create_newick_html()}
+File.open("#{output_folder}/macroape_linklength.newick",'w'){|f| f << newick_formatter.content()}
+
+File.open("#{output_folder}/macroape_linklength.xml",'w'){|f| f << xml_formatter.content()}
+File.open("#{output_folder}/macroape_linklength_w_xml.html",'w'){|f| f << xml_formatter.create_html_connected_to_xml("#{output_folder}/macroape_linklength.xml") }
 
 distance_macroape_cutoff_grid = (0.90...1).step(0.01).to_a
 

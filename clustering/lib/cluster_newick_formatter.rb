@@ -1,8 +1,8 @@
 require_relative 'cluster_formatter'
 
 class ClusterNewickFormatter < ClusterFormatter
-  def create_newick_html(branch_len_meth, size={})
-    newick_inner_content = create_newick_inner_content(branch_len_meth)
+  def create_newick_html(size={})
+    newick_inner_content = content()
     size_x = size[:x] || 2000
     size_y = size[:y] || 2000
     
@@ -32,16 +32,28 @@ class ClusterNewickFormatter < ClusterFormatter
     RESULT
   end
   
-  def create_newick_inner_content(ind = clusterer.root_node, branch_len_meth)
+  def content_for_leaf_node(ind)
+    compact_name( clusterer.names[ind] )
+  end
+  
+  def content_for_inner_node(ind)
+    ind1,ind2 = clusterer.children(ind)
+    dist, dist1, dist2 = clusterer.send(branch_len_meth, ind), clusterer.send(branch_len_meth, ind1), clusterer.send(branch_len_meth, ind2)
+    len_1 = (dist - dist1).round(3)
+    len_2 = (dist - dist2).round(3)
+    "(#{content_for_node(ind1)}:#{len_1},#{content_for_node(ind2)}:#{len_2})"
+  end
+  
+  def content_for_node(ind)
     if clusterer.leaf?(ind)
-      compact_name( clusterer.names[ind] )
+      content_for_leaf_node(ind)
     else
-      ind1,ind2 = clusterer.children(ind)
-      dist, dist1, dist2 = clusterer.send(branch_len_meth, ind), clusterer.send(branch_len_meth, ind1), clusterer.send(branch_len_meth, ind2)
-      len_1 = (dist - dist1).round(3)
-      len_2 = (dist - dist2).round(3)
-      "(#{create_newick_inner_content(ind1, branch_len_meth)}:#{len_1},#{create_newick_inner_content(ind2, branch_len_meth)}:#{len_2})"
+      content_for_inner_node(ind)
     end
+  end
+
+  def content()
+    content_for_node(clusterer.root_node)
   end
   
 end

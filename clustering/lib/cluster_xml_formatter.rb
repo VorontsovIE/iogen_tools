@@ -1,6 +1,12 @@
 require_relative 'cluster_formatter'
 
 class ClusterXMLFormatter < ClusterFormatter
+  attr_accessor :cutoff
+  def initialize(clusterer, branch_len_meth, cutoff)
+    super(clusterer, branch_len_meth)
+    @cutoff = cutoff
+  end
+
   def create_html_connected_to_xml(xml_file, size={})
     size_x = size[:x] || 2000
     size_y = size[:y] || 2000
@@ -49,9 +55,12 @@ class ClusterXMLFormatter < ClusterFormatter
     RESULT
   end
   
-  def create_xml(branch_len_meth, cutoff)
-    clusters = clusterer.subtree_clusters(&clusterer.cutoff_criterium(branch_len_meth, cutoff))
-    xml_inner_content = create_xml_inner_content(branch_len_meth, cutoff, clusters)
+  def clusters
+    @clusters ||= clusterer.subtree_clusters(&clusterer.cutoff_criterium(branch_len_meth, cutoff))
+  end
+    
+  def content
+    xml_inner_content = content_for_node(clusterer.root_node, clusters)
     
     <<-RESULT
     <phyloxml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.phyloxml.org http://www.phyloxml.org/1.10/phyloxml.xsd" xmlns="http://www.phyloxml.org">
@@ -82,36 +91,44 @@ class ClusterXMLFormatter < ClusterFormatter
     RESULT
   end
   
+  def content_for_leaf_node(ind, clusters)
+    stylename = clusters.find_index{|cluster| cluster.include? ind} % 2 == 0 ? 'first_cluster_group' : 'second_cluster_group'
+    name = clusterer.names[ind]
+    <<-RETSTRING
+      <name bgStyle="#{stylename}">#{compact_name(name)}</name>
+      <annotation>
+      <desc>&lt;img src=\"http://autosome.ru/hocomoco/hocomoco_f/motifs/#{name}_thumb.jpg\"/&gt;</desc>
+      <uri>http://autosome.ru/hocomoco/hocomoco_ad/motif_details/#{name}.html</uri>
+      </annotation>
+      <chart>
+        <component>#{stylename}</component>
+      </chart>
+    RETSTRING
+  end
+  
+  def content_for_inner_node(ind, clusters)
+    ind1, ind2 = clusterer.children(ind)
+    dist, dist1, dist2 = clusterer.send(branch_len_meth, ind), clusterer.send(branch_len_meth, ind1), clusterer.send(branch_len_meth, ind2)
+    len_1 = (dist - dist1).round(3)
+    len_2 = (dist - dist2).round(3)
+    <<-RETSTRING
+      <clade>
+      <branch_length>#{len_1}</branch_length>
+      #{content_for_node(ind1, clusters)}
+      </clade>
+      <clade>
+      <branch_length>#{len_2}</branch_length>
+      #{content_for_node(ind2, clusters)}
+      </clade>
+    RETSTRING
+  end
+  
   # block: ind in linkage tree  -->  dist 
-  def create_xml_inner_content(ind = clusterer.root_node, branch_len_meth, cutoff, clusters)
+  def content_for_node(ind, clusters)
     if clusterer.leaf?(ind)
-      stylename = clusters.find_index{|cluster| cluster.include? ind} % 2 == 0 ? 'first_cluster_group' : 'second_cluster_group'
-      name = clusterer.names[ind]
-      <<-RETSTRING
-        <name bgStyle="#{stylename}">#{compact_name(name)}</name>
-        <annotation>
-        <desc>&lt;img src=\"http://autosome.ru/hocomoco/hocomoco_f/motifs/#{name}_thumb.jpg\"/&gt;</desc>
-        <uri>http://autosome.ru/hocomoco/hocomoco_ad/motif_details/#{name}.html</uri>
-        </annotation>
-        <chart>
-          <component>#{stylename}</component>
-        </chart>
-      RETSTRING
+      content_for_leaf_node(ind, clusters)
     else
-      ind1, ind2 = clusterer.children(ind)
-      dist, dist1, dist2 = clusterer.send(branch_len_meth, ind), clusterer.send(branch_len_meth, ind1), clusterer.send(branch_len_meth, ind2)
-      len_1 = (dist - dist1).round(3)
-      len_2 = (dist - dist2).round(3)
-      <<-RETSTRING
-        <clade>
-        <branch_length>#{len_1}</branch_length>
-        #{create_xml_inner_content(ind1, branch_len_meth, cutoff, clusters)}
-        </clade>
-        <clade>
-        <branch_length>#{len_2}</branch_length>
-        #{create_xml_inner_content(ind2, branch_len_meth, cutoff, clusters)}
-        </clade>
-      RETSTRING
+      content_for_inner_node(ind, clusters)
     end
   end
 end

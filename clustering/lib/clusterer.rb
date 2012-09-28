@@ -17,8 +17,11 @@ end
 class Clusterer
   attr_accessor :names, :leafs_distance, :max_distance, :logger
   
+  def logger
+    @logger ||= Logger.new($stderr)
+  end
+
   def initialize(distance_matrix, linkage_method, names)
-    @logger = Logger.new($stderr)
     raise ArgumentError, 'Negative distances in matrix'  if distance_matrix.any?{|line| line.any?{|el| el < 0.0 }}
     @leafs_distance = distance_matrix
     sz = @leafs_distance.size
@@ -175,9 +178,14 @@ class Clusterer
   def dump(yaml_filename)
     distance_matrix_backup = @leafs_distance
     remove_instance_variable(:@leafs_distance)
+    
+    logger_backup = @logger
+    remove_instance_variable(:@logger)
+    
     File.open(yaml_filename,'w'){|f|  f.puts(self.to_yaml) }
   ensure
     @leafs_distance = distance_matrix_backup
+    @logger = logger_backup
   end
   
   def self.load(distance_matrix, yaml_filename)
