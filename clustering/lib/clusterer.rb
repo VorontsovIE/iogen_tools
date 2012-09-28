@@ -17,18 +17,21 @@ end
 class Clusterer
   attr_accessor :names, :leafs_distance, :max_distance, :logger, :linkage_method
   
+  def max_distance
+    @max_distance ||= []
+  end
+  
   def logger
     @logger ||= Logger.new($stderr)
   end
 
   def initialize(distance_matrix, linkage_method, names)
     raise ArgumentError, 'Negative distances in matrix'  if distance_matrix.any?{|line| line.any?{|el| el < 0.0 }}
+    sz = distance_matrix.size
+    raise 'Not squared matrix' unless distance_matrix.map(&:size).all?{|inner_sz| sz == inner_sz}
     @leafs_distance = distance_matrix
-    sz = @leafs_distance.size
-    raise 'Not squared matrix' unless @leafs_distance.map(&:size).all?{|inner_sz| sz == inner_sz}
     @linkage_method = linkage_method
     @names = names
-    @max_distance = []
   end
   
   # find index (i,j) corresponding to a minimal element of distance submatrix(bounded on current_nodes).
