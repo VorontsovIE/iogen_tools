@@ -15,7 +15,7 @@ def load_matrix_from_file(matrix_filename)
 end
 
 class Clusterer
-  attr_accessor :names, :leafs_distance, :max_distance, :logger
+  attr_accessor :names, :leafs_distance, :max_distance, :logger, :linkage_method
   
   def logger
     @logger ||= Logger.new($stderr)
@@ -49,6 +49,13 @@ class Clusterer
     return [ci,cj]
   end
   
+  def update_distance_matrix(current_dist, ci, cj)
+      sz = current_dist.size
+      current_dist << sz.times.collect{|j| distance_to_cluster_union(current_dist, j, ci, cj) }
+      sz.times{|i| current_dist[i] << distance_to_cluster_union(current_dist, i, ci, cj) } # duplicated calculations (not very time consuming)
+      current_dist.last << 0.0
+  end
+  
   def make_linkage
     logger.info "Clustering started"
     tm = Time.now
@@ -59,28 +66,27 @@ class Clusterer
     until current_nodes.size == 1
       ci, cj = index_of_minimal_element(current_nodes, current_dist, max_element)
       @linkage_tree << [[ci,cj], current_dist[ci][cj]]
-      sz = current_dist.size
-      current_dist << sz.times.collect{|j| distance_to_cluster_union(current_dist, j, ci, cj) }
-      sz.times{|i| current_dist[i] << distance_to_cluster_union(current_dist, i, ci, cj) } # duplicated calculations (not very time consuming)
-      current_dist.last << 0.0
-      current_nodes << sz
+      
+      current_nodes << current_dist.size
       current_nodes.delete(cj)
       current_nodes.delete(ci)
-      logger.info "#{sz - num_items} -- #{ci}, #{cj} -- #{Time.now - tm}"
+      update_distance_matrix(current_dist, ci, cj)
+      
+      logger.info "#{current_dist.size - num_items} -- #{ci}, #{cj} -- #{Time.now - tm}"
     end
     logger.info "Clustering finished"
     self
   end  
 
   def distance_to_cluster_union(distance_matrix, cx,ci,cj)
-   send(@linkage_method, distance_matrix, cx,ci,cj)
+   send(linkage_method, distance_matrix, cx,ci,cj)
   end
   
   def single_linkage(distance_matrix, cx,ci,cj)
-    [distance_matrix[cx][ci],distance_matrix[cx][cj]].min
+    [distance_matrix[cx][ci], distance_matrix[cx][cj]].min
   end
   def complete_linkage(distance_matrix,cx,ci,cj)
-    [distance_matrix[cx][ci],distance_matrix[cx][cj]].max
+    [distance_matrix[cx][ci], distance_matrix[cx][cj]].max
   end
   def average_linkage(distance_matrix,cx,ci,cj)
     0.5 * (distance_matrix[cx][ci] + distance_matrix[cx][cj])
@@ -130,9 +136,15 @@ class Clusterer
   # max distance between all leaves in a subtree
   def subtree_max_distance(ind)
     #@max_distance[ind] ||= leaf?(ind) ? 0.0 : children(ind).map{|child| subtree_max_distance(child)}.max
-    return @max_distance[ind] if @max_distance[ind]
+    return @max_distance[ind]  if @max_distance[ind]
     nodes = subtree_elements(ind)
-    @max_distance[ind] = metrics_subset(nodes).flatten.max || 0.0
+    max_distance = 0.0
+    nodes.each{|i|
+      nodes.each{|j|
+        max_distance = (@leafs_distance[i][j] > max_distance) ? @leafs_distance[i][j] : max_distance
+      }
+    }
+    max_distance
   end
   
   # selects from metric only pairwise distances between nodes (crossing out of matrix not presented nodes)

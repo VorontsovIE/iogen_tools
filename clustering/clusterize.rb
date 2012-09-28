@@ -8,6 +8,14 @@ require 'yaml'
 require 'fileutils'
 require 'optparse'
 
+
+options = { }
+OptionParser.new{|cmd|
+  cmd.on('-l', '--log LOG_FILE', 'log-file of clusterization process (by default stderr used)'){ |log_file|
+    options[:log_file] = log_file
+  }
+}.parse!
+
 matrix_filename = ARGV.shift        # distance_matrix/distance_macroape.txt
 names_filename = ARGV.shift         # distance_matrix/motifs_order.yaml
 output_folder = ARGV.shift          # distance_matrix/clustering_results
@@ -25,12 +33,6 @@ FileUtils.mkdir_p(File.dirname(cluster_dump_filename))  if cluster_dump_filename
 names = YAML.load_file(names_filename)
 distance_matrix = load_matrix_from_file(matrix_filename)
 
-options = { }
-OptionParser.new{|cmd|
-  cmd.on('-l', '--log LOG_FILE', 'log-file of clusterization process (by default stderr used)'){ |log_file|
-    options[:log_file] = log_file
-  }
-}.parse!
 
 if cluster_dump_filename
   if File.exist?(cluster_dump_filename)
@@ -43,6 +45,7 @@ if cluster_dump_filename
   end
 else
   clusterer = Clusterer.new(distance_matrix, :average_linkage, names)
+  clusterer.make_linkage
 end
 
 newick_formatter = ClusterNewickFormatter.new(clusterer, :link_length)
