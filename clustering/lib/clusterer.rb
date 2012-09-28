@@ -193,26 +193,4 @@ class Clusterer
     cluster.leafs_distance = distance_matrix
     cluster
   end
-  
-  ######################
-  
-  def create_newick_inner_content(ind = root_node, branch_len_meth)
-    ClusterNewickFormatter.new(self).create_newick_inner_content(ind, branch_len_meth)
-  end
-  
-  def create_newick_html(branch_len_meth, size={})
-    ClusterNewickFormatter.new(self).create_newick_html(branch_len_meth, size)
-  end
-  
-  def create_html_connected_to_xml(xml_file, size={})
-    ClusterXMLFormatter.new(self).create_html_connected_to_xml(xml_file, size)
-  end
-  
-  def create_xml(branch_len_meth, cutoff)
-    ClusterXMLFormatter.new(self).create_xml(branch_len_meth, cutoff)
-  end
-  
-  def create_xml_inner_content(ind = root_node, branch_len_meth, cutoff, clusters)
-    ClusterXMLFormatter.new(self).create_xml_inner_content(ind, branch_len_meth, cutoff, clusters)
-  end
 end

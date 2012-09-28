@@ -60,7 +60,7 @@ class ClusterXMLFormatter < ClusterFormatter
   end
     
   def content
-    xml_inner_content = content_for_node(clusterer.root_node, clusters)
+    xml_inner_content = content_for_node(clusterer.root_node)
     
     <<-RESULT
     <phyloxml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.phyloxml.org http://www.phyloxml.org/1.10/phyloxml.xsd" xmlns="http://www.phyloxml.org">
@@ -91,7 +91,7 @@ class ClusterXMLFormatter < ClusterFormatter
     RESULT
   end
   
-  def content_for_leaf_node(ind, clusters)
+  def content_for_leaf_node(ind)
     stylename = clusters.find_index{|cluster| cluster.include? ind} % 2 == 0 ? 'first_cluster_group' : 'second_cluster_group'
     name = clusterer.names[ind]
     <<-RETSTRING
@@ -106,7 +106,7 @@ class ClusterXMLFormatter < ClusterFormatter
     RETSTRING
   end
   
-  def content_for_inner_node(ind, clusters)
+  def content_for_inner_node(ind)
     ind1, ind2 = clusterer.children(ind)
     dist, dist1, dist2 = clusterer.send(branch_len_meth, ind), clusterer.send(branch_len_meth, ind1), clusterer.send(branch_len_meth, ind2)
     len_1 = (dist - dist1).round(3)
@@ -114,21 +114,21 @@ class ClusterXMLFormatter < ClusterFormatter
     <<-RETSTRING
       <clade>
       <branch_length>#{len_1}</branch_length>
-      #{content_for_node(ind1, clusters)}
+      #{content_for_node(ind1)}
       </clade>
       <clade>
       <branch_length>#{len_2}</branch_length>
-      #{content_for_node(ind2, clusters)}
+      #{content_for_node(ind2)}
       </clade>
     RETSTRING
   end
   
   # block: ind in linkage tree  -->  dist 
-  def content_for_node(ind, clusters)
+  def content_for_node(ind)
     if clusterer.leaf?(ind)
-      content_for_leaf_node(ind, clusters)
+      content_for_leaf_node(ind)
     else
-      content_for_inner_node(ind, clusters)
+      content_for_inner_node(ind)
     end
   end
 end
