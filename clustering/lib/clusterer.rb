@@ -58,10 +58,10 @@ class Clusterer
   end
 
   def update_distance_matrix(current_dist, ci, cj)
-      sz = current_dist.size
-      current_dist << sz.times.collect{|j| distance_to_cluster_union(current_dist, j, ci, cj) }
-      sz.times{|i| current_dist[i] << distance_to_cluster_union(current_dist, i, ci, cj) } # duplicated calculations (not very time consuming)
-      current_dist.last << 0.0
+    sz = current_dist.size
+    current_dist << sz.times.collect{|j| distance_to_cluster_union(current_dist, j, ci, cj) }
+    sz.times{|i| current_dist[i] << distance_to_cluster_union(current_dist, i, ci, cj) } # duplicated calculations (not very time consuming)
+    current_dist.last << 0.0
   end
 
   def make_linkage
@@ -87,7 +87,7 @@ class Clusterer
   end
 
   def distance_to_cluster_union(distance_matrix, cx,ci,cj)
-   send(linkage_method, distance_matrix, cx,ci,cj)
+    send(linkage_method, distance_matrix, cx,ci,cj)
   end
 
   def single_linkage(distance_matrix, cx,ci,cj)
