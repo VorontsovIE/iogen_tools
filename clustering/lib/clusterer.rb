@@ -14,6 +14,18 @@ def load_matrix_from_file(matrix_filename)
   File.readlines(matrix_filename).map{|line| line.strip.split.map(&:to_f) }
 end
 
+# Usage:
+#  obj.eliminating_instance_variable(:@excess_data) { obj.dump }
+class Object
+  def eliminating_instance_variable(var)
+    variable_backup = instance_variable_get(var)
+    remove_instance_variable(var)
+    yield
+  ensure
+    instance_variable_set(var, variable_backup)
+  end
+end
+
 class Clusterer
   attr_accessor :names, :leafs_distance, :linkage_method
   attr_writer :logger, :max_distance
@@ -93,7 +105,7 @@ class Clusterer
   end
 
   def root_node
-    2*num_items-2
+    2 * num_items - 2
   end
 
   def leaf?(ind)
@@ -176,16 +188,11 @@ class Clusterer
 
   # dumps clustering tree without matrix (which can be dump separately if not yet saved by #dump_matrix) into YAML-file
   def dump(yaml_filename)
-    distance_matrix_backup = @leafs_distance
-    remove_instance_variable(:@leafs_distance)
-
-    logger_backup = @logger
-    remove_instance_variable(:@logger)
-
-    File.open(yaml_filename,'w'){|f|  f.puts(self.to_yaml) }
-  ensure
-    @leafs_distance = distance_matrix_backup
-    @logger = logger_backup
+    eliminating_instance_variable(:@leafs_distance) {
+      eliminating_instance_variable(:@logger) {
+        File.open(yaml_filename,'w'){|f|  f.puts(self.to_yaml) }
+      }
+    }
   end
 
   def self.load(distance_matrix, yaml_filename)
