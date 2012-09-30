@@ -8,22 +8,15 @@ class Array
   def deep_dup
     dup.map!(&:dup)
   end
-end  
+end
 
 def load_matrix_from_file(matrix_filename)
   File.readlines(matrix_filename).map{|line| line.strip.split.map(&:to_f) }
 end
 
 class Clusterer
-  attr_accessor :names, :leafs_distance, :max_distance, :logger, :linkage_method
-  
-  def max_distance
-    @max_distance ||= []
-  end
-  
-  def logger
-    @logger ||= Logger.new($stderr)
-  end
+  attr_accessor :names, :leafs_distance, :linkage_method
+  attr_writer :logger, :max_distance
 
   def initialize(distance_matrix, linkage_method, names)
     raise ArgumentError, 'Negative distances in matrix'  if distance_matrix.any?{|line| line.any?{|el| el < 0.0 }}
@@ -33,7 +26,7 @@ class Clusterer
     @linkage_method = linkage_method
     @names = names
   end
-  
+
   # find index (i,j) corresponding to a minimal element of distance submatrix(bounded on current_nodes).
   # return value ci,cj is always ordered: ci < cj
   # max_element is an initial value for min
@@ -51,40 +44,40 @@ class Clusterer
     }
     return [ci,cj]
   end
-  
+
   def update_distance_matrix(current_dist, ci, cj)
       sz = current_dist.size
       current_dist << sz.times.collect{|j| distance_to_cluster_union(current_dist, j, ci, cj) }
       sz.times{|i| current_dist[i] << distance_to_cluster_union(current_dist, i, ci, cj) } # duplicated calculations (not very time consuming)
       current_dist.last << 0.0
   end
-  
+
   def make_linkage
     logger.info "Clustering started"
     tm = Time.now
     @linkage_tree = []
     current_nodes = num_items.times.to_a
-    current_dist = @leafs_distance.deep_dup
+    current_dist = leafs_distance.deep_dup
     max_element = current_dist.map(&:max).max
     until current_nodes.size == 1
       ci, cj = index_of_minimal_element(current_nodes, current_dist, max_element)
       @linkage_tree << [[ci,cj], current_dist[ci][cj]]
-      
+
       current_nodes << current_dist.size
       current_nodes.delete(cj)
       current_nodes.delete(ci)
       update_distance_matrix(current_dist, ci, cj)
-      
-      logger.info "#{current_dist.size - num_items} -- #{ci}, #{cj} -- #{Time.now - tm}"
+
+      logger.info "#{current_dist.size - num_items} step -- #{Time.now - tm} sec"
     end
     logger.info "Clustering finished"
     self
-  end  
+  end
 
   def distance_to_cluster_union(distance_matrix, cx,ci,cj)
    send(linkage_method, distance_matrix, cx,ci,cj)
   end
-  
+
   def single_linkage(distance_matrix, cx,ci,cj)
     [distance_matrix[cx][ci], distance_matrix[cx][cj]].min
   end
@@ -94,23 +87,23 @@ class Clusterer
   def average_linkage(distance_matrix,cx,ci,cj)
     0.5 * (distance_matrix[cx][ci] + distance_matrix[cx][cj])
   end
-  
+
   def num_items
-    @leafs_distance.size
+    leafs_distance.size
   end
-  
+
   def root_node
     2*num_items-2
   end
-  
+
   def leaf?(ind)
     ind < num_items
   end
-  
-  def children(ind) # return [ind1,ind2]
+
+  def children(ind) # return [ind1, ind2]
     @linkage_tree[ind - num_items].first
   end
-  
+
   # glue clusters of subtrees when both subtrees aren't already divided into several clusters and if block returned true (or if block not given)
   def subtree_clusters(ind=root_node, &block)
     return [[ind]] if leaf?(ind)
@@ -123,33 +116,33 @@ class Clusterer
       branch_1 + branch_2
     end
   end
-  
+
   def get_clusters_names(&block)
     subtree_clusters(&block).map{|clust| clust.map{|ind| names[ind]} }
   end
-  
+
   def subtree_elements(ind)
     subtree_clusters(ind).flatten
   end
-  
+
   def link_length(ind)
     leaf?(ind) ? 0.0 : @linkage_tree[ind - num_items].last
   end
-  
+
   # max distance between all leaves in a subtree
   def subtree_max_distance(ind)
     #@max_distance[ind] ||= leaf?(ind) ? 0.0 : children(ind).map{|child| subtree_max_distance(child)}.max
-    return @max_distance[ind]  if @max_distance[ind]
+    return max_distance[ind]  if max_distance[ind]
     nodes = subtree_elements(ind)
     max_distance = 0.0
     nodes.each{|i|
       nodes.each{|j|
-        max_distance = (@leafs_distance[i][j] > max_distance) ? @leafs_distance[i][j] : max_distance
+        max_distance = (leafs_distance[i][j] > max_distance) ? leafs_distance[i][j] : max_distance
       }
     }
     max_distance
   end
-  
+
   def inconsistences
     return @inconsistences  if @inconsistences
     result = []
@@ -166,38 +159,46 @@ class Clusterer
     end
     @inconsistences = result
   end
-  
+
   def cutoff_criterium(criterium, cutoff)
     lambda{|ind| send(criterium, ind) <= cutoff}
   end
-  
+
   def number_of_clusters_criterium(num_clusters)
     lambda{|ind| ind <= 2*num_items - 1 - num_clusters}
   end
-  
+
   def dump_matrix(filename)
     File.open(filename,'w'){ |f|
       leafs_distance.each{|line| f.puts line.join("\t") }
     }
   end
-  
+
   # dumps clustering tree without matrix (which can be dump separately if not yet saved by #dump_matrix) into YAML-file
   def dump(yaml_filename)
     distance_matrix_backup = @leafs_distance
     remove_instance_variable(:@leafs_distance)
-    
+
     logger_backup = @logger
     remove_instance_variable(:@logger)
-    
+
     File.open(yaml_filename,'w'){|f|  f.puts(self.to_yaml) }
   ensure
     @leafs_distance = distance_matrix_backup
     @logger = logger_backup
   end
-  
+
   def self.load(distance_matrix, yaml_filename)
     cluster = YAML.load_file(yaml_filename)
     cluster.leafs_distance = distance_matrix
     cluster
+  end
+
+  def max_distance
+    @max_distance ||= []
+  end
+
+  def logger
+    @logger ||= Logger.new($stderr)
   end
 end
