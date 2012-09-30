@@ -152,7 +152,7 @@ class Clusterer
         max_distance = (leafs_distance[i][j] > max_distance) ? leafs_distance[i][j] : max_distance
       }
     }
-    max_distance
+    @max_distance[ind] = max_distance
   end
 
   def inconsistences

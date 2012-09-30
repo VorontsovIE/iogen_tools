@@ -9,6 +9,33 @@ require 'fileutils'
 require 'optparse'
 
 
+# Returns sorted list of cutoffs with number of clusters at this cutoff and number of annotated clusters
+# Format: [[cutoff_1, num_clusters_1, num_annotated_clusters_1], ...]
+# Selection condition should be specified with a block (because there are different known-denovo recognition methods)
+# Block gets cluster (names of motifs in cluster) and should return true iff cluster is annotated
+def calculate_statistics_by_possible_cutoffs(clusterer, criterium, &block)
+  dists = (0..clusterer.root_node).map{|ind| clusterer.send(criterium,ind)}.uniq.sort
+  result = []
+  dists.each{|cutoff|
+    clusters = clusterer.get_clusters_names(&clusterer.cutoff_criterium(criterium, cutoff))
+    annotated_clusters = clusters.select(&block)
+    result << [cutoff, clusters.size, annotated_clusters.size]
+  }
+  File.open("#{criterium}_cutoffs.txt",'w'){|f| f.puts result.map{|cutoff_stat| cutoff_stat.join("\t")}}
+  result
+end
+
+# Looks for a cutoff that yields maximal number of annotated clusters (consisting of both known and denovo motif).
+# Returns least possible cutoff (prefer more compact clusters)
+def best_cutoff(clusterer, criterium, &block)
+  statistics = calculate_statistics_by_possible_cutoffs(clusterer, criterium, &block)
+  max_num_annotated_clusters = statistics.map{|cutoff, num_clusters, num_annotated_clusters| num_annotated_clusters }.max
+  
+  statistics.find{|cutoff, num_clusters, num_annotated_clusters| num_annotated_clusters == max_num_annotated_clusters }.tap do |x|
+    puts "best #{criterium} cutoff: #{x[0]} -- num clusters: #{x[1]} -- num annotated_clusters: #{x[2]}"
+  end.first
+end
+
 options = { }
 OptionParser.new{|cmd|
   cmd.on('-l', '--log LOG_FILE', 'log-file of clusterization process (by default stderr used)'){ |log_file|
@@ -56,7 +83,12 @@ File.open("#{output_folder}/macroape_linklength.newick",'w'){|f| f << newick_for
 File.open("#{output_folder}/macroape_linklength.xml",'w'){|f| f << xml_formatter.content()}
 File.open("#{output_folder}/macroape_linklength_w_xml.html",'w'){|f| f << xml_formatter.create_html_connected_to_xml("#{output_folder}/macroape_linklength.xml") }
 
+
 distance_macroape_cutoff_grid = (0.90...1).step(0.01).to_a
+
+distance_macroape_cutoff_grid << best_cutoff(clusterer, :subtree_max_distance){|cluster| cluster.any?{|name| name =~ /KNOWN/ }  &&  cluster.any?{|name| name !~ /KNOWN/ }  }
+distance_macroape_cutoff_grid << best_cutoff(clusterer, :link_length){|cluster| cluster.any?{|name| name =~ /KNOWN/ }  &&  cluster.any?{|name| name !~ /KNOWN/ }  }
+
 
 clusters_macroape_linklength, clusters_macroape_maxdist = {}, {}
 distance_macroape_cutoff_grid.each { |cutoff|
@@ -65,13 +97,13 @@ distance_macroape_cutoff_grid.each { |cutoff|
 }
 
 clusters_macroape_linklength.each do |cutoff, clusters|
-  File.open("#{output_folder}/macroape_linklength_cluster_names (#{cutoff.round(3)} - #{clusters.size}).txt",'w'){|f|
+  File.open("#{output_folder}/macroape_linklength_cluster_names (#{cutoff.round(4)} - #{clusters.size}).txt",'w'){|f|
     clusters.each{|clust| f.puts clust.join("\t") }
   }    
 end
 
 clusters_macroape_maxdist.each do |cutoff, clusters|
-  File.open("#{output_folder}/macroape_maxdist_cluster_names (#{cutoff.round(3)} - #{clusters.size}).txt",'w'){|f| 
+  File.open("#{output_folder}/macroape_maxdist_cluster_names (#{cutoff.round(4)} - #{clusters.size}).txt",'w'){|f| 
     clusters.each{|clust| f.puts clust.join("\t")}
   }
 end
