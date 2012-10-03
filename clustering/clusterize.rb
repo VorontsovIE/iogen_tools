@@ -31,7 +31,7 @@ def best_cutoff(clusterer, criterium, &block)
   statistics = calculate_statistics_by_possible_cutoffs(clusterer, criterium, &block)
   max_num_annotated_clusters = statistics.map{|cutoff, num_clusters, num_annotated_clusters| num_annotated_clusters }.max
   
-  statistics.find{|cutoff, num_clusters, num_annotated_clusters| num_annotated_clusters == max_num_annotated_clusters }.tap do |x|
+  statistics.reverse.find{|cutoff, num_clusters, num_annotated_clusters| num_annotated_clusters == max_num_annotated_clusters }.tap do |x|
     puts "best #{criterium} cutoff: #{x[0]} -- num clusters: #{x[1]} -- num annotated_clusters: #{x[2]}"
   end.first
 end
@@ -40,6 +40,9 @@ options = { }
 OptionParser.new{|cmd|
   cmd.on('-l', '--log LOG_FILE', 'log-file of clusterization process (by default stderr used)'){ |log_file|
     options[:log_file] = log_file
+  }
+  cmd.on('-w','--with-names','load matrix from distance matrix with names'){
+    options[:with_names] = true
   }
 }.parse!
 
@@ -57,9 +60,14 @@ raise 'output folder not specified'  unless output_folder
 FileUtils.mkdir_p(output_folder)  unless Dir.exist? output_folder
 FileUtils.mkdir_p(File.dirname(cluster_dump_filename))  if cluster_dump_filename && ! Dir.exist?(File.dirname(cluster_dump_filename))
 
-names = YAML.load_file(names_filename)
-distance_matrix = load_matrix_from_file(matrix_filename)
 
+if options[:with_names]
+  distance_matrix = load_matrix_from_file_with_names(matrix_filename)
+  names = File.open(matrix_filename){|f|f.readline}.strip.split[1..-1]
+else
+  distance_matrix = load_matrix_from_file(matrix_filename)
+  names = YAML.load_file(names_filename)
+end
 
 if cluster_dump_filename
   if File.exist?(cluster_dump_filename)
@@ -75,24 +83,28 @@ else
   clusterer.make_linkage
 end
 
-newick_formatter = ClusterNewickFormatter.new(clusterer, :link_length)
-xml_formatter = ClusterXMLFormatter.new(clusterer, :link_length, 0.1)
-File.open("#{output_folder}/macroape_linklength.html",'w'){|f| f << newick_formatter.create_newick_html()}
-File.open("#{output_folder}/macroape_linklength.newick",'w'){|f| f << newick_formatter.content()}
+#newick_formatter = ClusterNewickFormatter.new(clusterer, :link_length)
+#xml_formatter = ClusterXMLFormatter.new(clusterer, :link_length, 0.1)
+#File.open("#{output_folder}/macroape_linklength.html",'w'){|f| f << newick_formatter.create_newick_html()}
+#File.open("#{output_folder}/macroape_linklength.newick",'w'){|f| f << newick_formatter.content()}
 
-File.open("#{output_folder}/macroape_linklength.xml",'w'){|f| f << xml_formatter.content()}
-File.open("#{output_folder}/macroape_linklength_w_xml.html",'w'){|f| f << xml_formatter.create_html_connected_to_xml("#{output_folder}/macroape_linklength.xml") }
+#File.open("#{output_folder}/macroape_linklength.xml",'w'){|f| f << xml_formatter.content()}
+#File.open("#{output_folder}/macroape_linklength_w_xml.html",'w'){|f| f << xml_formatter.create_html_connected_to_xml("#{output_folder}/macroape_linklength.xml") }
 
 
-distance_macroape_cutoff_grid = (0.90...1).step(0.01).to_a
+distance_macroape_cutoff_grid = [] # (0.90...1).step(0.01).to_a
+distance_macroape_cutoff_maxdist_grid = []
+distance_macroape_cutoff_linklength_grid = []
 
-distance_macroape_cutoff_grid << best_cutoff(clusterer, :subtree_max_distance){|cluster| cluster.any?{|name| name =~ /KNOWN/ }  &&  cluster.any?{|name| name !~ /KNOWN/ }  }
-distance_macroape_cutoff_grid << best_cutoff(clusterer, :link_length){|cluster| cluster.any?{|name| name =~ /KNOWN/ }  &&  cluster.any?{|name| name !~ /KNOWN/ }  }
-
+annotated = ->(cluster){ cluster.any?{|motif| motif =~ /^KNOWN/} && cluster.any?{|motif| motif =~ /^DENOVO/ }}
+distance_macroape_cutoff_maxdist_grid << best_cutoff(clusterer, :subtree_max_distance, &annotated)
+distance_macroape_cutoff_linklength_grid << best_cutoff(clusterer, :link_length, &annotated)
 
 clusters_macroape_linklength, clusters_macroape_maxdist = {}, {}
-distance_macroape_cutoff_grid.each { |cutoff|
+distance_macroape_cutoff_linklength_grid.each { |cutoff|
   clusters_macroape_linklength[cutoff] = clusterer.get_clusters_names(&clusterer.cutoff_criterium(:link_length, cutoff))
+}
+distance_macroape_cutoff_maxdist_grid.each { |cutoff|
   clusters_macroape_maxdist[cutoff] = clusterer.get_clusters_names(&clusterer.cutoff_criterium(:subtree_max_distance, cutoff))
 }
 

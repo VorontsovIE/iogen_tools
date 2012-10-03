@@ -14,6 +14,10 @@ def load_matrix_from_file(matrix_filename)
   File.readlines(matrix_filename).map{|line| line.strip.split.map(&:to_f) }
 end
 
+def load_matrix_from_file_with_names(matrix_filename)
+  File.readlines(matrix_filename)[1..-1].map{|line| line.strip.split[1..-1].map(&:to_f) }
+end
+
 # Usage:
 #  obj.eliminating_instance_variable(:@excess_data) { obj.dump }
 class Object
@@ -32,8 +36,8 @@ class Clusterer
 
   def initialize(distance_matrix, linkage_method, names)
     raise ArgumentError, 'Negative distances in matrix'  if distance_matrix.any?{|line| line.any?{|el| el < 0.0 }}
-    sz = distance_matrix.size
-    raise 'Not squared matrix' unless distance_matrix.map(&:size).all?{|inner_sz| sz == inner_sz}
+    @size = distance_matrix.size
+    raise 'Not squared matrix' unless distance_matrix.map(&:size).all?{|inner_sz| @size == inner_sz}
     @leafs_distance = distance_matrix
     @linkage_method = linkage_method
     @names = names
@@ -69,7 +73,7 @@ class Clusterer
     tm = Time.now
     @linkage_tree = []
     current_nodes = num_items.times.to_a
-    current_dist = leafs_distance.deep_dup
+    current_dist = leafs_distance #.deep_dup
     max_element = current_dist.map(&:max).max
     until current_nodes.size == 1
       ci, cj = index_of_minimal_element(current_nodes, current_dist, max_element)
@@ -79,7 +83,7 @@ class Clusterer
       current_nodes.delete(cj)
       current_nodes.delete(ci)
       update_distance_matrix(current_dist, ci, cj)
-
+      GC.start if current_dist.size % 100 == 0
       logger.info "#{current_dist.size - num_items} step -- #{Time.now - tm} sec"
     end
     logger.info "Clustering finished"
@@ -101,7 +105,7 @@ class Clusterer
   end
 
   def num_items
-    leafs_distance.size
+    @size #leafs_distance.size
   end
 
   def root_node
